@@ -1,5 +1,6 @@
 const Users = require("../models/UserModel");
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 const signupController = async (req, res) => {
   try {
@@ -12,11 +13,17 @@ const signupController = async (req, res) => {
       });
     }
 
-    await Users.create(req.body);
+    bcrypt.hash(req.body.password, 12, async (error, hash) => {
+      // store hash in your password DB
+      console.log(hash);
+      req.body.password = hash;
 
-    res.json({
-      status: true,
-      message: "User Signed up successfully!",
+      await Users.create(req.body);
+
+      res.json({
+        status: true,
+        message: "User Signed up successfully!",
+      });
     });
   } catch (error) {
     console.log(error, "==>> error");
@@ -41,26 +48,29 @@ const loginController = async (req, res) => {
         message: "User not found!",
       });
 
-    if (myUser.password != password)
+    bcrypt.compare(password, myUser.password, (err, result) => {
+      // result == true
+      if (result) {
+        const token = jwt.sign(
+          {
+            email: myUser.email,
+            userName: myUser.userName,
+            id: myUser._id,
+          },
+          process.env.JWT_SECRET,
+          { expiresIn: 2 * 60 },
+        );
+
+        res.json({
+          status: true,
+          message: "User logged in successfully!",
+          token: token,
+        });
+      }
       return res.json({
         status: false,
         message: "Wrong Password",
       });
-
-    const token = jwt.sign(
-      {
-        email: myUser.email,
-        userName: myUser.userName,
-        id: myUser._id,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: 2 * 60 },
-    );
-
-    res.json({
-      status: true,
-      message: "User logged in successfully!",
-      token: token,
     });
   } catch (error) {
     console.log(error, "=>> Error");
